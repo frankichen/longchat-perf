@@ -301,11 +301,20 @@ export function deriveHealth(state, now = Date.now(), settings = DEFAULT_SETTING
   }
 
   if (terminalStatus && persistenceCheckedAfterTerminal && s.lastPersistenceFinalFound === false) {
+    if (s.lastConversationTurnOpen === true) {
+      return {
+        code: 'STATUS_SERVICE_COMPLETE_TURN_OPEN',
+        level: 'orange',
+        confidence: 'HIGH',
+        label: '状态服务报结束，但任务链仍未闭合',
+        action: '会话详情显示当前 working turn 仍未结束；状态服务的 COMPLETE / NOT_STREAMING 只作为辅助信号，不能据此判定任务已经完成。继续观察会话链或 DevHub 真实活动。'
+      };
+    }
     if (terminalAge < settings.terminalPersistenceGraceMs) {
-      return { code: 'COMPLETE_WAITING_FINAL', level: 'orange', confidence: 'HIGH', label: '后台已结束，等待最终回复落盘', action: `已确认后端状态为结束，但当前会话尚未找到最终助手回复；先等约 ${Math.ceil((settings.terminalPersistenceGraceMs-terminalAge)/1000)} 秒，不要重跑。` };
+      return { code: 'COMPLETE_WAITING_FINAL', level: 'orange', confidence: 'MEDIUM', label: '状态服务报结束，等待最终回复确认', action: `状态服务返回结束值，但会话链尚未确认最终可见助手回复；先等约 ${Math.ceil((settings.terminalPersistenceGraceMs-terminalAge)/1000)} 秒，不要重跑。` };
     }
     const devhubHint = s.devhubActiveTaskId ? ` DevHub 仍记录 Task #${s.devhubActiveTaskId}；建议先查 DevHub/Checkpoint，避免重复执行。` : '';
-    return { code: 'COMPLETE_WITHOUT_FINAL', level: 'red', confidence: 'HIGH', label: '执行已结束，但最终回复未落盘', action: `后端已经进入结束状态，而且重新读取会话后仍没有当前任务的最终助手回复。不要把它当成仍在运行；先核对 DevHub/Checkpoint/实际产物，再决定是否补跑最后阶段。${devhubHint}` };
+    return { code: 'COMPLETE_WITHOUT_FINAL', level: 'red', confidence: 'MEDIUM', label: '会话链未找到最终回复', action: `状态服务已经返回结束值，重新读取会话后也没有找到当前任务的最终可见助手回复。先核对 DevHub/Checkpoint/实际产物，再决定是否补跑最后阶段。${devhubHint}` };
   }
 
   const passiveStillStreaming = isStreamingValue(s.lastStreamStatusValue);
