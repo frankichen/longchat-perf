@@ -273,7 +273,7 @@ $('savePersistence').addEventListener('click', async () => {
       autoPersistenceCheckMinGapMs:Math.max(15000, Math.min(1800000, Number($('persistenceMinGap').value || 60) * 1000)),
       terminalPersistenceGraceMs:Math.max(5000, Math.min(300000, Number($('persistenceGrace').value || 30) * 1000))
     });
-    $('persistenceStatus').textContent = '最终回复落盘核验设置已保存。';
+    $('persistenceStatus').textContent = '会话链与最终回复核验设置已保存。';
   } catch (e) { $('persistenceStatus').textContent = friendlyError(e?.message || e); }
 });
 
