@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LongChat Perf · 任务生命监视器 - 配置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+<main>
+  <h1>LongChat Perf · 任务生命监视器 v0.5.0</h1>
+  <p class="lead">DevHub 联动是可选功能。令牌不会注入 chatgpt.com 页面。建议在自己的电脑上使用；默认只在当前浏览器会话中保存令牌。</p>
+
+  <section>
+    <h2>升级与配置保护</h2>
+    <p class="note"><strong>以后升级请直接把新版文件覆盖到原扩展目录，然后在扩展管理页点“重新加载”。不要先删除旧扩展。</strong>删除扩展会清空浏览器为该扩展保存的配置。</p>
+    <div class="row buttons">
+      <button id="exportConfig">导出普通配置（不含令牌）</button>
+      <button id="exportFullConfig" class="secondary">导出完整配置（包含已持久保存的令牌）</button>
+      <button id="importConfig" class="secondary">导入配置</button>
+      <input id="importFile" type="file" accept="application/json,.json" hidden>
+    </div>
+    <div id="backupStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>DevHub 全局设置</h2>
+    <label><input id="devhubEnabled" type="checkbox"> 启用 DevHub 联动</label>
+    <label><input id="autoProjectMapping" type="checkbox"> 根据 ChatGPT 项目名/会话标题自动路由</label>
+    <label>默认 DevHub 地址<input id="baseUrl" type="url" value="https://devhub.sgk.555044.xyz"></label>
+    <div class="row">
+      <label><input id="submitOnOpen" type="checkbox"> 打开/聚焦窗口时提交活动旁证</label>
+      <label><input id="submitOnStateChange" type="checkbox"> 生命状态变化时提交活动旁证</label>
+    </div>
+    <label>最小提交间隔（秒）<input id="minGap" type="number" min="15" max="3600" value="60"></label>
+    <button id="saveGlobal">保存全局设置并申请 DevHub 域名权限</button>
+    <div id="globalStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>自动项目路由</h2>
+    <p class="note">插件会从当前页面路由、项目列表、项目元数据、会话 <code>gizmo_id</code> 和会话标题中识别归属。规则同时匹配 ChatGPT 项目名与会话标题。</p>
+    <label>路由规则（每行：<code>名称 =&gt; devhub项目 / 槽位</code>）
+      <textarea id="autoRules" rows="9" spellcheck="false"></textarea>
+    </label>
+    <div class="row buttons">
+      <button id="saveRules">保存路由规则</button>
+      <button id="restoreRules" class="secondary">恢复内置 SXT / XYZL 规则</button>
+    </div>
+    <div id="rulesStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>额度与限流监测</h2>
+    <p class="note">插件只被动读取 ChatGPT 页面已经收到的 <code>usage.snapshot</code>、<code>usage.heartbeat</code> 或额度 JSON 响应，不会为了显示额度主动新增请求。只保存限额窗口、重置时间、模型可用状态和重置额度数量；不会保存账号、邮箱、用户标识或账户标识。</p>
+  </section>
+
+  <section>
+    <h2>独立任务状态探针</h2>
+    <label><input id="streamProbeEnabled" type="checkbox"> 页面状态查询连续失败后，允许插件低频发起独立探针</label>
+    <label>连续失败多少次后启用独立探针<input id="probeFailureThreshold" type="number" min="1" max="8" value="2"></label>
+    <label>独立探针最小间隔（秒）<input id="probeMinGap" type="number" min="5" max="300" value="15"></label>
+    <label><input id="staleStreamingProbeEnabled" type="checkbox"> 页面长期持续返回“正在运行”时，启用低频“防假活”独立校验</label>
+    <label>持续“正在运行”多久后首次校验（秒）<input id="staleStreamingAfter" type="number" min="30" max="600" value="90"></label>
+    <label>防假活独立校验最小间隔（秒）<input id="staleStreamingGap" type="number" min="30" max="600" value="60"></label>
+    <button id="saveProbe">保存探针设置</button>
+    <div id="probeStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>结束状态与最终回复核验</h2>
+    <p class="note">当状态接口返回 <code>COMPLETE</code> 等结束状态时，插件不会直接判定“任务已成功”。它会在低频协调后最多补做一次会话读取，确认当前任务是否真的出现最终助手回复。</p>
+    <label><input id="autoPersistenceCheckEnabled" type="checkbox"> 后端进入结束状态后自动核验最终回复是否落盘</label>
+    <label>结束后等待多久再核验（秒）<input id="persistenceDelay" type="number" min="1" max="60" value="5"></label>
+    <label>自动核验最小间隔（秒）<input id="persistenceMinGap" type="number" min="15" max="1800" value="60"></label>
+    <label>判定“结束但未落盘”前的宽限时间（秒）<input id="persistenceGrace" type="number" min="5" max="300" value="30"></label>
+    <button id="savePersistence">保存落盘核验设置</button>
+    <div id="persistenceStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>DevHub 项目配置</h2>
+    <p class="note"><strong>推荐每个 DevHub 项目只建立一个“主管旁证”配置。</strong>例如 SXT 一个、XYZL 一个。自动路由会动态提供对应的开发槽位（WORKER-A/B/C）或评审槽位（REVIEWER-A），主管令牌仍只属于对应项目。</p>
+    <input id="profileId" type="hidden">
+    <label>配置名称<input id="profileName" placeholder="例如：SXT 主管旁证"></label>
+    <label>DevHub 项目标识<input id="projectKey" placeholder="sxt 或 xyzl"></label>
+    <label>模式
+      <select id="profileMode">
+        <option value="manager_evidence">主管旁证模式（推荐）</option>
+        <option value="heartbeat">槽位心跳模式（副作用更强）</option>
+      </select>
+    </label>
+    <label>默认目标槽位<input id="slotName" placeholder="建议填 MANAGER，仅作为手工兜底"></label>
+    <label>会话代次（可选）<input id="sessionGeneration" type="number" min="1" placeholder="留空则使用当前/默认代次"></label>
+    <label>单独覆盖 DevHub 地址（可选）<input id="profileBaseUrl" type="url" placeholder="留空则使用全局地址"></label>
+    <label>访问令牌<input id="token" type="password" autocomplete="off" placeholder="只粘贴令牌本身"></label>
+    <label><input id="rememberToken" type="checkbox"> 将令牌持久保存到浏览器扩展存储（方便但安全性更低）；不勾选则只保存到本次浏览器会话。</label>
+    <div class="row buttons">
+      <button id="saveProfile">新增/更新配置</button>
+      <button id="clearForm" class="secondary">清空表单</button>
+    </div>
+    <div id="profileStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>已有 DevHub 配置</h2>
+    <div id="profileList"></div>
+  </section>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

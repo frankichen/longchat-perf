@@ -1,10 +1,11 @@
 {
   "name": "longchat-perf",
-  "version": "0.3.0",
-  "description": "A tiny, local-only rendering patch for keeping long ChatGPT conversations responsive.",
+  "version": "0.5.0",
+  "description": "Long ChatGPT performance optimization plus task liveness and request guard.",
   "license": "MIT",
   "scripts": {
-    "test": "node tools/smoke-test.js"
+    "test": "node tools/smoke-test.js && node tests/test-core.mjs && node tests/test-project-routing.mjs && node tools/verify-extension.mjs",
+    "package:stage": "node tools/package-extension.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.0.0"
