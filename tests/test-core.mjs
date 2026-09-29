@@ -80,6 +80,18 @@ s.lastPersistenceFinalFound = false;
 s.lastGeneralBackendOkAt = now - 9_000;
 assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'COMPLETE_WITHOUT_FINAL');
 
+s = createHealthState('turn-open');
+s.lastMutationAt = now - 120_000;
+s.lastBackendTerminalAt = now - 45_000;
+s.lastBackendTerminalValue = 'COMPLETE';
+s.lastPersistenceCheckAt = now - 10_000;
+s.lastPersistenceFinalFound = false;
+s.lastConversationCheckAt = now - 10_000;
+s.lastConversationTurnOpen = true;
+s.lastConversationTurnClosed = false;
+s.lastConversationCurrentNodeRole = 'tool';
+assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'STATUS_SERVICE_COMPLETE_TURN_OPEN');
+
 s = createHealthState('c5');
 s.lastMutationAt = now - 40_000;
 s.last429At = now - 500;
