@@ -185,7 +185,7 @@ async function buildExport(includeSecrets) {
     format:'chatgpt-task-vital-monitor-config',
     version:1,
     exportedAt:new Date().toISOString(),
-    pluginVersion:'0.5.0',
+    pluginVersion:chrome.runtime.getManifest().version,
     devhubConfig:cfg,
     syncSettings
   };
