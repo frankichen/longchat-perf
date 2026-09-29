@@ -489,23 +489,70 @@
   }
 
   function messageSignal(message) {
+    const metadata = message?.metadata || {};
     const role = String(message?.author?.role || message?.role || '').toLowerCase();
-    const status = String(message?.status || message?.metadata?.status || '').toLowerCase();
-    const terminalStatus = ['finished_successfully','finished','complete','completed','done'].includes(status);
-    const completeFlag = message?.metadata?.is_complete === true || message?.end_turn === true;
-    const explicitlyIncomplete = message?.metadata?.is_complete === false || message?.end_turn === false;
+    const status = String(message?.status || metadata?.status || '').toLowerCase();
     const content = message?.content;
     const parts = Array.isArray(content?.parts) ? content.parts : [];
     const text = parts.map(part => typeof part === 'string' ? part : (part?.text || '')).join('').trim();
     const hasVisibleContent = Boolean(text || String(content?.text || '').trim());
-    const terminal = role === 'assistant' && !explicitlyIncomplete && (terminalStatus || completeFlag);
+    const recipient = String(message?.recipient || '').trim();
+    const hidden = metadata?.is_visually_hidden_from_conversation === true;
+    const thinkingPreamble = metadata?.is_thinking_preamble_message === true;
+    const endTurn = message?.end_turn === true ? true : (message?.end_turn === false ? false : null);
+    const workingTurnId = String(metadata?.working_turn_id || metadata?.turn_exchange_id || '');
+    const strongFinal = role === 'assistant'
+      && endTurn === true
+      && !hidden
+      && !thinkingPreamble
+      && (!recipient || recipient === 'all')
+      && hasVisibleContent;
     return {
       role,
       status,
-      terminal,
+      terminal: strongFinal,
       hasVisibleContent,
-      finalFound: terminal && hasVisibleContent,
+      finalFound: strongFinal,
+      endTurn,
+      recipient,
+      hidden,
+      workingTurnId,
       messageId: String(message?.id || '')
+    };
+  }
+
+  function summarizeTurn(messages, currentMessage, source) {
+    let lastUser = -1;
+    for (let i = 0; i < messages.length; i++) {
+      if (messageSignal(messages[i]).role === 'user') lastUser = i;
+    }
+    const turnMessages = messages.slice(Math.max(0, lastUser + 1));
+    let assistant = null;
+    for (const message of turnMessages) {
+      const sig = messageSignal(message);
+      if (sig.role === 'assistant') assistant = sig;
+    }
+    const current = messageSignal(currentMessage || turnMessages[turnMessages.length - 1] || null);
+    const finalFound = Boolean(assistant?.finalFound && current.messageId === assistant.messageId);
+    const turnOpen = Boolean(
+      !finalFound &&
+      (
+        current.role === 'tool' ||
+        (current.role === 'assistant' && current.endTurn !== true) ||
+        assistant?.endTurn === false ||
+        (current.recipient && current.recipient !== 'all')
+      )
+    );
+    return {
+      ...(assistant || { role:'', status:'', terminal:false, finalFound:false, endTurn:null, recipient:'', hidden:false, workingTurnId:'', messageId:'' }),
+      finalFound,
+      terminal: finalFound,
+      turnOpen,
+      turnClosed: finalFound,
+      currentNodeRole: current.role || '',
+      currentNodeMessageId: current.messageId || '',
+      workingTurnId: current.workingTurnId || assistant?.workingTurnId || '',
+      source
     };
   }
 
@@ -525,17 +572,11 @@
           nodeId = String(node?.parent || '');
         }
         branch.reverse();
-        let lastUser = -1;
-        for (let i = 0; i < branch.length; i++) {
-          if (messageSignal(branch[i]).role === 'user') lastUser = i;
-        }
-        let assistant = null;
-        for (let i = Math.max(0, lastUser + 1); i < branch.length; i++) {
-          const sig = messageSignal(branch[i]);
-          if (sig.role === 'assistant') assistant = sig;
-        }
-        if (assistant) return { ...assistant, finalFound: assistant.finalFound === true, source: 'mapping-current-branch' };
-        return { role: '', status: '', terminal: false, finalFound: false, messageId: '', source: 'mapping-no-final-assistant' };
+        return {
+          ...summarizeTurn(branch, mapping[currentNode]?.message || null, 'mapping-current-branch'),
+          currentNodeId: currentNode,
+          asyncStatus: root?.async_status ?? null
+        };
       }
     }
 
@@ -543,23 +584,20 @@
       for (const arr of [root?.messages, root?.items]) {
         if (!Array.isArray(arr) || !arr.length) continue;
         const list = arr.map(x => x?.message || x).filter(Boolean);
-        let lastUser = -1;
-        for (let i = 0; i < list.length; i++) {
-          if (messageSignal(list[i]).role === 'user') lastUser = i;
-        }
-        let assistant = null;
-        for (let i = Math.max(0, lastUser + 1); i < list.length; i++) {
-          const sig = messageSignal(list[i]);
-          if (sig.role === 'assistant') assistant = sig;
-        }
-        if (assistant) return { ...assistant, finalFound: assistant.finalFound === true, source: 'flat-list' };
+        const current = list[list.length - 1] || null;
+        return {
+          ...summarizeTurn(list, current, 'flat-list'),
+          currentNodeId: String(root?.current_node || current?.id || ''),
+          asyncStatus: root?.async_status ?? null
+        };
       }
     }
-    return { role: '', status: '', terminal: false, finalFound: false, messageId: '', source: 'none' };
+    return { role:'', status:'', terminal:false, finalFound:false, turnOpen:false, turnClosed:false, messageId:'', currentNodeRole:'', currentNodeId:'', workingTurnId:'', asyncStatus:null, source:'none' };
   }
 
   function signalFromBody(body) {
-    try { return latestMessageSignal(JSON.parse(body)); } catch { return { role: '', status: '', terminal: false, finalFound: false, messageId: '', source: 'parse-error' }; }
+    try { return latestMessageSignal(JSON.parse(body)); }
+    catch { return { role:'', status:'', terminal:false, finalFound:false, turnOpen:false, turnClosed:false, messageId:'', currentNodeRole:'', currentNodeId:'', workingTurnId:'', asyncStatus:null, source:'parse-error' }; }
   }
 
   function cacheClassForSnapshot(snapshot, target) {
