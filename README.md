@@ -4,7 +4,7 @@ A Chromium extension for long ChatGPT conversations and long-running tasks. Vers
 
 ## Download
 
-GitHub Releases include a ready-to-unzip extension archive (`longchat-perf-v0.5.0.zip`) plus its SHA-256 file. Unzip it, then load the extracted folder from `chrome://extensions` or `edge://extensions` with Developer Mode enabled.
+GitHub Releases include a ready-to-unzip extension archive (`longchat-perf-v0.5.1.zip`) plus its SHA-256 file. Unzip it, then load the extracted folder from `chrome://extensions` or `edge://extensions` with Developer Mode enabled.
 
 The packaging workflow runs tests, stages only runtime files, creates the ZIP, uploads a GitHub Actions artifact, and attaches the ZIP to a published GitHub Release.
 

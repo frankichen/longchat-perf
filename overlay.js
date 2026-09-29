@@ -242,7 +242,17 @@
     } catch {}
   }
 
+  function closePanel() {
+    $('panel').classList.remove('open');
+  }
+
   $('pill').addEventListener('click', () => $('panel').classList.toggle('open'));
+  document.addEventListener('pointerdown', event => {
+    if (!$('panel').classList.contains('open')) return;
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    if (path.includes(rootHost)) return;
+    closePanel();
+  }, true);
   chrome.runtime.onMessage.addListener(message => {
     if (message?.type === 'HEALTH_UPDATE' && message.summary) render(message.summary);
     if (message?.type === 'USAGE_UPDATE') {

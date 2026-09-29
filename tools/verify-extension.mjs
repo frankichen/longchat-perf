@@ -9,10 +9,12 @@ const required = [
 ];
 let failures = 0;
 function ok(cond,msg){ if(cond) console.log('PASS',msg); else { failures++; console.error('FAIL',msg); } }
-ok(manifest.version === '0.5.0','manifest 版本为 0.5.0');
+ok(manifest.version === '0.5.1','manifest 版本为 0.5.1');
 ok(manifest.background?.service_worker === 'service-worker.js','后台 Service Worker 已启用');
 ok(Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequest'),'已声明 webRequest 只读观测权限');
 for (const f of required) ok(fs.existsSync(path.join(root,f)),`运行时文件存在：${f}`);
+const overlay = fs.readFileSync(path.join(root,'overlay.js'),'utf8');
+ok(overlay.includes("document.addEventListener('pointerdown'"),'生命体征详情支持点击页面其他位置自动收起');
 const popup = fs.readFileSync(path.join(root,'popup/popup.html'),'utf8');
 for (const id of ['healthLabel','cv','cmMount','ltStatus','profileSelect','diagnose']) ok(popup.includes(`id="${id}"`),`弹窗包含 ${id}`);
 const options = fs.readFileSync(path.join(root,'options.html'),'utf8');
