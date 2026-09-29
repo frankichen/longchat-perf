@@ -331,11 +331,11 @@ export function deriveHealth(state, now = Date.now(), settings = DEFAULT_SETTING
 
   if (terminalStatus && terminalAge <= Math.max(settings.healthDegradedMs, 5 * 60_000)) {
     return {
-      code: probeIsNewest ? 'BACKEND_COMPLETE_PROBE' : 'BACKEND_COMPLETE',
+      code: 'STATUS_SERVICE_TERMINAL_UNCONFIRMED',
       level: 'orange',
-      confidence: probeIsNewest ? 'HIGH' : 'MEDIUM',
-      label: probeIsNewest ? '后台已结束（独立探针确认），尚未确认最终回复' : '后台已结束，尚未确认最终回复',
-      action: '后端状态“结束”不等于最终回复已经落盘。插件会做一次低频落盘核验；在结果确认前不要重复执行同一任务。'
+      confidence: 'LOW',
+      label: '状态服务报结束，等待会话链核验',
+      action: 'COMPLETE / FINISHED / NOT_STREAMING 现在只作为辅助状态信号。插件会低频读取一次会话详情，在 current_node、working_turn_id、end_turn 与最终可见助手回复核验前不会判定任务完成。'
     };
   }
 
