@@ -18,5 +18,5 @@ ok(overlay.includes("document.addEventListener('pointerdown'"),'生命体征详�
 const popup = fs.readFileSync(path.join(root,'popup/popup.html'),'utf8');
 for (const id of ['healthLabel','cv','cmMount','ltStatus','profileSelect','diagnose']) ok(popup.includes(`id="${id}"`),`弹窗包含 ${id}`);
 const options = fs.readFileSync(path.join(root,'options.html'),'utf8');
-for (const text of ['升级与配置保护','自动项目路由','结束状态与最终回复核验']) ok(options.includes(text),`配置页包含：${text}`);
+for (const text of ['升级与配置保护','自动项目路由','会话链核验与最终回复']) ok(options.includes(text),`配置页包含：${text}`);
 process.exit(failures ? 1 : 0);
