@@ -77,6 +77,8 @@ s.lastBackendTerminalAt = now - 45_000;
 s.lastBackendTerminalValue = 'COMPLETE';
 s.lastPersistenceCheckAt = now - 10_000;
 s.lastPersistenceFinalFound = false;
+s.lastConversationTurnOpen = false;
+s.lastConversationTurnClosed = true;
 s.lastGeneralBackendOkAt = now - 9_000;
 assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'COMPLETE_WITHOUT_FINAL');
 
