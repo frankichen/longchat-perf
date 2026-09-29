@@ -33,7 +33,7 @@ s.lastStreamProbeOkAt = now - 500;
 s.lastStreamProbeAt = now - 500;
 s.lastStreamProbeHttpStatus = 200;
 s.lastStreamProbeValue = 'COMPLETE';
-assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'BACKEND_COMPLETE_PROBE');
+assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'STATUS_SERVICE_TERMINAL_UNCONFIRMED');
 
 s = createHealthState('c2');
 s.lastMutationAt = now - 50_000;
