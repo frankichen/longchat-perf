@@ -56,7 +56,7 @@ s.lastStreamStatusOkAt = now - 1_000;
 s.lastStreamStatusValue = 'NOT_STREAMING';
 s.lastResumeStatus = 410;
 s.lastResumeFailureAt = now - 2_000;
-assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'BACKEND_COMPLETE');
+assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'STATUS_SERVICE_TERMINAL_UNCONFIRMED');
 
 
 
