@@ -310,11 +310,20 @@ export function deriveHealth(state, now = Date.now(), settings = DEFAULT_SETTING
         action: '会话详情显示当前 working turn 仍未结束；状态服务的 COMPLETE / NOT_STREAMING 只作为辅助信号，不能据此判定任务已经完成。继续观察会话链或 DevHub 真实活动。'
       };
     }
+    if (s.lastConversationTurnClosed !== true) {
+      return {
+        code: 'STATUS_SERVICE_TERMINAL_AMBIGUOUS',
+        level: 'orange',
+        confidence: 'LOW',
+        label: '状态服务报结束，但任务链尚未闭合确认',
+        action: '已经读取会话详情，但没有得到足够强的“当前 working turn 已闭合”证据。此时不能判定任务完成，也不能判定最终回复丢失；继续观察会话链或 DevHub 真实活动。'
+      };
+    }
     if (terminalAge < settings.terminalPersistenceGraceMs) {
-      return { code: 'COMPLETE_WAITING_FINAL', level: 'orange', confidence: 'MEDIUM', label: '状态服务报结束，等待最终回复确认', action: `状态服务返回结束值，但会话链尚未确认最终可见助手回复；先等约 ${Math.ceil((settings.terminalPersistenceGraceMs-terminalAge)/1000)} 秒，不要重跑。` };
+      return { code: 'COMPLETE_WAITING_FINAL', level: 'orange', confidence: 'MEDIUM', label: '任务链已闭合，等待最终回复确认', action: `会话链已经闭合，但还没有确认最终可见助手回复；先等约 ${Math.ceil((settings.terminalPersistenceGraceMs-terminalAge)/1000)} 秒，不要重跑。` };
     }
     const devhubHint = s.devhubActiveTaskId ? ` DevHub 仍记录 Task #${s.devhubActiveTaskId}；建议先查 DevHub/Checkpoint，避免重复执行。` : '';
-    return { code: 'COMPLETE_WITHOUT_FINAL', level: 'red', confidence: 'MEDIUM', label: '会话链未找到最终回复', action: `状态服务已经返回结束值，重新读取会话后也没有找到当前任务的最终可见助手回复。先核对 DevHub/Checkpoint/实际产物，再决定是否补跑最后阶段。${devhubHint}` };
+    return { code: 'COMPLETE_WITHOUT_FINAL', level: 'red', confidence: 'MEDIUM', label: '任务链已闭合，但最终回复未落盘', action: `会话链本身已经闭合，但没有找到当前任务的最终可见助手回复。先核对 DevHub/Checkpoint/实际产物，再决定是否补跑最后阶段。${devhubHint}` };
   }
 
   const passiveStillStreaming = isStreamingValue(s.lastStreamStatusValue);
