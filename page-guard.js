@@ -909,7 +909,21 @@
           const cacheClass = cacheClassForSnapshot(snapshot, target);
           if (target.kind === 'detail') {
             const signal = signalFromBody(snapshot.body);
-            health('DETAIL_SIGNAL', { status: response.status, terminal: signal.terminal, finalFound: Boolean(signal.finalFound), assistantStatus: signal.status || '', parseSource: signal.source || '', cacheClass, source: 'network' }, target.conversationId);
+            health('DETAIL_SIGNAL', {
+              status:response.status,
+              terminal:Boolean(signal.terminal),
+              finalFound:Boolean(signal.finalFound),
+              turnOpen:Boolean(signal.turnOpen),
+              turnClosed:Boolean(signal.turnClosed),
+              currentNodeRole:signal.currentNodeRole || '',
+              currentNodeId:signal.currentNodeId || '',
+              workingTurnId:signal.workingTurnId || '',
+              asyncStatus:signal.asyncStatus ?? null,
+              assistantStatus:signal.status || '',
+              parseSource:signal.source || '',
+              cacheClass,
+              source:'network'
+            }, target.conversationId);
           }
           let completion = null;
           try {
