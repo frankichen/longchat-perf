@@ -551,10 +551,17 @@ function applyHealthEvent(state, event, now) {
     if (status >= 200 && status < 300) {
       next.lastDetailNetworkAt = now;
       next.lastGeneralBackendOkAt = now;
+      next.lastConversationCheckAt = now;
+      next.lastConversationTurnOpen = typeof event.turnOpen === 'boolean' ? event.turnOpen : next.lastConversationTurnOpen;
+      next.lastConversationTurnClosed = typeof event.turnClosed === 'boolean' ? event.turnClosed : next.lastConversationTurnClosed;
+      next.lastConversationCurrentNodeRole = String(event.currentNodeRole || next.lastConversationCurrentNodeRole || '');
+      next.lastConversationCurrentNodeId = String(event.currentNodeId || next.lastConversationCurrentNodeId || '');
+      next.lastConversationWorkingTurnId = String(event.workingTurnId || next.lastConversationWorkingTurnId || '');
+      next.lastConversationAsyncStatus = event.asyncStatus ?? next.lastConversationAsyncStatus ?? null;
       next.lastPersistenceCheckAt = now;
       next.lastPersistenceHttpStatus = status;
       next.lastPersistenceCheckError = '';
-      const found = event.finalFound === true || event.terminal === true;
+      const found = event.finalFound === true;
       next.lastPersistenceFinalFound = found;
       if (found) next.lastPersistedAt = now;
       if (kind === 'PERSISTENCE_CHECK') {
