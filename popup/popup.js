@@ -234,6 +234,18 @@ function renderHealth(summary) {
   $('probeValue').textContent = summary?.lastStreamProbeValue
     ? `${statusText(summary.lastStreamProbeValue)} / ${ago(summary.lastStreamProbeOkAt)}`
     : ((summary?.streamProbeConsecutiveFailures || 0) > 0 ? `连续失败 ${summary.streamProbeConsecutiveFailures} 次` : '-');
+  $('chainStateValue').textContent = summary?.lastConversationTurnOpen === true
+    ? '当前任务链未闭合'
+    : (summary?.lastConversationTurnClosed === true
+      ? (summary?.lastPersistenceFinalFound === true ? '任务链已闭合，最终回复已确认' : '任务链已闭合，最终回复未确认')
+      : (summary?.lastConversationCheckAt ? '已读取，但任务链闭合状态不明确' : '尚未读取'));
+  $('chainNodeValue').textContent = summary?.lastConversationCurrentNodeRole || '-';
+  $('workingTurnValue').textContent = summary?.lastConversationWorkingTurnId
+    ? String(summary.lastConversationWorkingTurnId).slice(0, 18) + (String(summary.lastConversationWorkingTurnId).length > 18 ? '…' : '')
+    : '-';
+  $('asyncStatusValue').textContent = summary?.lastConversationAsyncStatus === null || summary?.lastConversationAsyncStatus === undefined
+    ? '-'
+    : `${summary.lastConversationAsyncStatus}（仅记录原值）`;
   $('heartbeatAge').textContent = ago(Math.max(Number(summary?.lastStreamStatusOkAt || 0), Number(summary?.lastStreamProbeOkAt || 0)));
   $('terminalValue').textContent = summary?.lastBackendTerminalAt
     ? `${statusText(summary.lastBackendTerminalValue || 'COMPLETE')} / ${ago(summary.lastBackendTerminalAt)}`
