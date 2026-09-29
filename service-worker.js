@@ -636,9 +636,8 @@ async function requestPersistenceCheck(message) {
       result = { action:'skip', reason:'rate-limited', retryAfterMs: settings.healthNetworkWindowMs - (now - Number(health.last429At)) };
       return;
     }
-    const terminalAt = Number(health.lastBackendTerminalAt || 0);
-    if (!force && terminalAt && Number(health.lastPersistenceCheckAt || 0) >= terminalAt) {
-      result = { action:'skip', reason:'already-checked-after-terminal' };
+    if (!force && health.lastPersistenceFinalFound === true) {
+      result = { action:'skip', reason:'final-confirmed' };
       return;
     }
     const stored = await chrome.storage.session.get(PERSISTENCE_CHECK_COORD_KEY);
