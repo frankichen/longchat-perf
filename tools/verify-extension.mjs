@@ -9,7 +9,7 @@ const required = [
 ];
 let failures = 0;
 function ok(cond,msg){ if(cond) console.log('PASS',msg); else { failures++; console.error('FAIL',msg); } }
-ok(manifest.version === '0.5.1','manifest 版本为 0.5.1');
+ok(manifest.version === '0.5.2','manifest 版本为 0.5.2');
 ok(manifest.background?.service_worker === 'service-worker.js','后台 Service Worker 已启用');
 ok(Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequest'),'已声明 webRequest 只读观测权限');
 for (const f of required) ok(fs.existsSync(path.join(root,f)),`运行时文件存在：${f}`);
