@@ -467,6 +467,13 @@ function applyHealthEvent(state, event, now) {
     next.lastBackendTerminalAt = 0;
     next.lastBackendTerminalValue = '';
     next.lastBackendTerminalSource = '';
+    next.lastConversationCheckAt = 0;
+    next.lastConversationTurnOpen = null;
+    next.lastConversationTurnClosed = null;
+    next.lastConversationCurrentNodeRole = '';
+    next.lastConversationCurrentNodeId = '';
+    next.lastConversationWorkingTurnId = '';
+    next.lastConversationAsyncStatus = null;
     next.lastPersistenceCheckAt = 0;
     next.lastPersistenceFinalFound = null;
     next.lastPersistenceHttpStatus = 0;
