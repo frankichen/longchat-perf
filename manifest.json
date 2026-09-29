@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LongChat Perf · 任务生命监视器",
-  "version": "0.5.1",
-  "description": "优化超长 ChatGPT 会话渲染，降低重复会话请求与 429，并监测 stream_status、断流、最终回复落盘及可选 DevHub 存活证据。",
+  "version": "0.5.2",
+  "description": "优化超长 ChatGPT 会话渲染，降低重复会话请求与 429，并用状态服务 + 会话链交叉判断任务是否仍未闭合、最终回复是否真正落盘及可选 DevHub 证据。",
   "minimum_chrome_version": "111",
   "permissions": [
     "storage",
