@@ -261,7 +261,7 @@ $('saveProbe').addEventListener('click', async () => {
       streamProbeStaleStreamingAfterMs:Math.max(30000, Math.min(600000, Number($('staleStreamingAfter').value || 90) * 1000)),
       streamProbeStaleStreamingGapMs:Math.max(30000, Math.min(600000, Number($('staleStreamingGap').value || 60) * 1000))
     });
-    $('probeStatus').textContent = '独立探针设置已保存。';
+    $('probeStatus').textContent = '状态服务探针设置已保存。';
   } catch (e) { $('probeStatus').textContent = friendlyError(e?.message || e); }
 });
 
