@@ -1100,7 +1100,13 @@
           streamValue: probe.value || '',
           backendTerminal: Boolean(probe.terminal),
           terminal: Boolean(persistence?.terminal),
-          finalFound: Boolean(persistence?.finalFound)
+          finalFound: Boolean(persistence?.finalFound),
+          turnOpen: Boolean(persistence?.turnOpen),
+          turnClosed: Boolean(persistence?.turnClosed),
+          currentNodeRole: persistence?.currentNodeRole || '',
+          currentNodeId: persistence?.currentNodeId || '',
+          workingTurnId: persistence?.workingTurnId || '',
+          asyncStatus: persistence?.asyncStatus ?? null
         }
       });
     } catch (error) {
