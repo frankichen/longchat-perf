@@ -100,9 +100,10 @@ function friendlyReason(value) {
   const v = String(value || '').trim();
   const lower = v.toLowerCase();
   const map = {
-    no_conversation:'未识别到当前会话', probe_busy:'独立探针正在协调中',
+    no_conversation:'未识别到当前会话', probe_busy:'状态服务探针正在协调中',
     disabled_or_missing:'功能未启用或缺少会话信息', 'rate-limited':'当前处于限流退避期',
-    'already-checked-after-terminal':'结束状态之后已经核验过最终回复',
+    'already-checked-after-terminal':'结束状态之后已经核验过会话链',
+    'final-confirmed':'最终回复已经确认，无需再次核验',
     'in-flight':'已有同类核验正在进行', 'minimum-gap':'距离上一次核验时间太短',
     'passive-heartbeat-not-degraded':'页面状态查询仍可用，无需额外探针',
     disabled:'DevHub 全局联动未启用', auto_profile_missing:'已识别项目和槽位，但缺少对应主管配置',
