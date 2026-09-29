@@ -358,21 +358,24 @@ $('expandAll').addEventListener('click', async () => { await sendToActivePage({ 
 
 $('diagnose').addEventListener('click', async () => {
   if (!activeTab?.id) return;
-  $('status').textContent = '正在做独立状态探针；如果后台已结束，再额外核验一次最终回复是否真正落盘…';
+  $('status').textContent = '正在读取状态服务；如果它返回结束，再读取一次会话链，核对 current_node、working turn、end_turn 和最终回复…';
   try {
     const result = await chrome.tabs.sendMessage(activeTab.id, { type:'RUN_MANUAL_DIAGNOSE' });
     const value = result?.streamValue || result?.probe?.value || '';
     const count = Number(result?.requestCount || 0);
     if (result?.ok && result?.finalFound) {
-      $('status').textContent = `后台已结束，并且最终助手回复已确认落盘。本次 ${count || 2} 个有界请求；可以刷新，不要重复执行。`;
+      $('status').textContent = `会话链已确认最终助手回复真正落盘。本次 ${count || 2} 个有界请求；可以刷新，不要重复执行。`;
+    } else if (result?.ok && result?.turnOpen) {
+      const node = result?.currentNodeRole || '未知节点';
+      $('status').textContent = `状态服务可能返回“${statusText(value || 'UNKNOWN')}”，但会话链仍未闭合（当前节点：${node}）。因此不能判定完成，继续观察真实进展。`;
     } else if (result?.ok && result?.backendTerminal) {
-      $('status').textContent = `后台状态：${statusText(value || 'COMPLETE')}，但重新读取会话后仍未确认最终助手回复。先核对 DevHub 检查点和实际产物，不要直接重跑整个任务。`;
+      $('status').textContent = `状态服务返回：${statusText(value || 'COMPLETE')}，但会话链尚未给出足够强的最终完成证据。状态服务只作辅助，不要直接重跑整个任务。`;
     } else if (result?.ok) {
-      $('status').textContent = `独立状态探针：${statusText(value || 'UNKNOWN')}；后台状态接口可达。本次只用了 ${count || 1} 个请求。`;
+      $('status').textContent = `状态服务探针：${statusText(value || 'UNKNOWN')}；这里只是辅助状态信号。本次用了 ${count || 1} 个请求。`;
     } else if (result?.skipped) {
       $('status').textContent = `本次没有额外发请求：${result?.error || '探针正在协调/退避中'}。`;
     } else {
-      $('status').textContent = `独立探针失败：状态码 ${result?.status ?? 0}${result?.error ? ' / '+friendlyReason(result.error) : ''}。更像网络链路或服务暂时不可达。`;
+      $('status').textContent = `状态服务探针失败：状态码 ${result?.status ?? 0}${result?.error ? ' / '+friendlyReason(result.error) : ''}。更像网络链路或服务暂时不可达。`;
     }
     setTimeout(refreshHealth, 500);
   } catch (e) {
