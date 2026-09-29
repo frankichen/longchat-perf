@@ -196,6 +196,16 @@
     $('stream').textContent = `${passiveStatus}${s.lastStreamStatusAt ? `（${ago(s.lastStreamStatusAt)}）` : ''}`;
     const probeStatus = s.lastStreamProbeValue ? statusText(s.lastStreamProbeValue) : (s.lastStreamProbeFailureAt ? `连续失败 ${Number(s.streamProbeConsecutiveFailures || 0)} 次` : '-');
     $('probe').textContent = `${probeStatus}${s.lastStreamProbeAt ? `（${ago(s.lastStreamProbeAt)}）` : ''}`;
+    $('chainState').textContent = s.lastConversationTurnOpen === true
+      ? '当前任务链未闭合'
+      : (s.lastConversationTurnClosed === true
+        ? (s.lastPersistenceFinalFound === true ? '任务链已闭合，最终回复已确认' : '任务链已闭合，最终回复未确认')
+        : (s.lastConversationCheckAt ? '已读取，但闭合状态不明确' : '尚未读取'));
+    $('chainNode').textContent = s.lastConversationCurrentNodeRole || '-';
+    $('workingTurn').textContent = s.lastConversationWorkingTurnId
+      ? String(s.lastConversationWorkingTurnId).slice(0, 18) + (String(s.lastConversationWorkingTurnId).length > 18 ? '…' : '')
+      : '-';
+    $('asyncStatus').textContent = s.lastConversationAsyncStatus === null || s.lastConversationAsyncStatus === undefined ? '-' : `${s.lastConversationAsyncStatus}（仅记录原值）`;
     const newestHeartbeat = Math.max(Number(s.lastStreamStatusOkAt || 0), Number(s.lastStreamProbeOkAt || 0));
     $('heartbeat').textContent = ago(newestHeartbeat);
     $('terminal').textContent = s.lastBackendTerminalAt ? `${statusText(s.lastBackendTerminalValue || 'COMPLETE')} / ${ago(s.lastBackendTerminalAt)}` : '-';
