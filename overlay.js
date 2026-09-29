@@ -47,9 +47,13 @@
       <div class="grid">
         <div class="k">判断置信度</div><div id="confidence"></div>
         <div class="k">页面状态查询</div><div id="stream"></div>
-        <div class="k">独立生命探针</div><div id="probe"></div>
-        <div class="k">最后成功心跳</div><div id="heartbeat"></div>
-        <div class="k">后端结束状态</div><div id="terminal"></div>
+        <div class="k">状态服务探针（辅助）</div><div id="probe"></div>
+        <div class="k">会话链状态</div><div id="chainState"></div>
+        <div class="k">当前会话节点</div><div id="chainNode"></div>
+        <div class="k">工作回合标识</div><div id="workingTurn"></div>
+        <div class="k">异步状态原值</div><div id="asyncStatus"></div>
+        <div class="k">状态服务最近成功</div><div id="heartbeat"></div>
+        <div class="k">状态服务结束信号</div><div id="terminal"></div>
         <div class="k">恢复请求</div><div id="resume"></div>
         <div class="k">网络链路</div><div id="network"></div>
         <div class="k">最终回复落盘</div><div id="persisted"></div>
