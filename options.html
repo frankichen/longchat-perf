@@ -56,25 +56,26 @@
   </section>
 
   <section>
-    <h2>独立任务状态探针</h2>
-    <label><input id="streamProbeEnabled" type="checkbox"> 页面状态查询连续失败后，允许插件低频发起独立探针</label>
-    <label>连续失败多少次后启用独立探针<input id="probeFailureThreshold" type="number" min="1" max="8" value="2"></label>
-    <label>独立探针最小间隔（秒）<input id="probeMinGap" type="number" min="5" max="300" value="15"></label>
-    <label><input id="staleStreamingProbeEnabled" type="checkbox"> 页面长期持续返回“正在运行”时，启用低频“防假活”独立校验</label>
+    <h2>状态服务探针（辅助）</h2>
+    <p class="note"><code>IS_STREAMING / COMPLETE / NOT_STREAMING</code> 现在只作为辅助账本信号，不再单独证明“仍在计算”或“已经完成”。</p>
+    <label><input id="streamProbeEnabled" type="checkbox"> 页面状态查询连续失败后，允许插件低频发起状态服务探针</label>
+    <label>连续失败多少次后启用探针<input id="probeFailureThreshold" type="number" min="1" max="8" value="2"></label>
+    <label>状态服务探针最小间隔（秒）<input id="probeMinGap" type="number" min="5" max="300" value="15"></label>
+    <label><input id="staleStreamingProbeEnabled" type="checkbox"> 页面长期持续返回“正在运行”时，启用低频防假活校验</label>
     <label>持续“正在运行”多久后首次校验（秒）<input id="staleStreamingAfter" type="number" min="30" max="600" value="90"></label>
-    <label>防假活独立校验最小间隔（秒）<input id="staleStreamingGap" type="number" min="30" max="600" value="60"></label>
-    <button id="saveProbe">保存探针设置</button>
+    <label>防假活校验最小间隔（秒）<input id="staleStreamingGap" type="number" min="30" max="600" value="60"></label>
+    <button id="saveProbe">保存状态服务探针设置</button>
     <div id="probeStatus" class="status"></div>
   </section>
 
   <section>
-    <h2>结束状态与最终回复核验</h2>
-    <p class="note">当状态接口返回 <code>COMPLETE</code> 等结束状态时，插件不会直接判定“任务已成功”。它会在低频协调后最多补做一次会话读取，确认当前任务是否真的出现最终助手回复。</p>
-    <label><input id="autoPersistenceCheckEnabled" type="checkbox"> 后端进入结束状态后自动核验最终回复是否落盘</label>
-    <label>结束后等待多久再核验（秒）<input id="persistenceDelay" type="number" min="1" max="60" value="5"></label>
-    <label>自动核验最小间隔（秒）<input id="persistenceMinGap" type="number" min="15" max="1800" value="60"></label>
-    <label>判定“结束但未落盘”前的宽限时间（秒）<input id="persistenceGrace" type="number" min="5" max="300" value="30"></label>
-    <button id="savePersistence">保存落盘核验设置</button>
+    <h2>会话链核验与最终回复</h2>
+    <p class="note">状态服务返回 <code>COMPLETE</code> 后，插件会低频读取 <code>/backend-api/conversations/{id}</code>，检查 <code>current_node</code>、<code>working_turn_id</code>、<code>end_turn</code> 和当前节点角色。只有当前 working turn 出现可见 assistant、<code>end_turn=true</code> 且有实际正文，才确认最终回复已落盘。</p>
+    <label><input id="autoPersistenceCheckEnabled" type="checkbox"> 状态服务进入结束值后自动核验会话链和最终回复</label>
+    <label>结束值出现后等待多久首次核验（秒）<input id="persistenceDelay" type="number" min="1" max="60" value="5"></label>
+    <label>会话链自动核验最小间隔（秒）<input id="persistenceMinGap" type="number" min="15" max="1800" value="60"></label>
+    <label>任务链已闭合但无最终回复时的宽限时间（秒）<input id="persistenceGrace" type="number" min="5" max="300" value="30"></label>
+    <button id="savePersistence">保存会话链核验设置</button>
     <div id="persistenceStatus" class="status"></div>
   </section>
 
