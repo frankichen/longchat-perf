@@ -16,7 +16,7 @@ Existing project measurements reported cumulative long-task time improving from 
 
 ## Task liveness
 
-The extension correlates passive `/stream_status`, bounded independent probes, resume results, general backend reachability, final assistant-message persistence, and optional DevHub liveness. A backend `COMPLETE` state is not treated as success until the final assistant message is observed in the conversation.
+The extension correlates passive `/stream_status`, bounded status-service probes, resume results, conversation-chain evidence, general backend reachability, final assistant-message persistence, and optional DevHub liveness. In v0.5.2, `COMPLETE / FINISHED / NOT_STREAMING` are only auxiliary status signals. The conversation detail response is checked for `current_node`, `working_turn_id`, `end_turn`, the current node role, and a visible final assistant message before the task is treated as complete.
 
 ## Request guard
 
