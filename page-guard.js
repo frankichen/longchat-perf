@@ -629,58 +629,79 @@
   }
 
 
-  async function performPersistenceCheck(conversationId, source = 'persistence-check') {
+  async function performPersistenceCheck(conversationId, source = 'conversation-chain-check') {
     const id = String(conversationId || '');
-    if (!id) return { ok: false, status: 0, finalFound: false, error: 'NO_CONVERSATION' };
+    if (!id) return { ok:false, status:0, finalFound:false, turnOpen:false, turnClosed:false, error:'NO_CONVERSATION' };
     const url = `${location.origin}/backend-api/conversations/${encodeURIComponent(id)}?num_turns=10&include_has_versions=true`;
     try {
       const response = await originalFetch(url, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { accept: 'application/json' }
+        method:'GET',
+        credentials:'include',
+        cache:'no-store',
+        headers:{ accept:'application/json' }
       });
       let body = '';
       try { body = await response.clone().text(); } catch {}
-      const signal = response.ok ? signalFromBody(body) : { terminal:false, finalFound:false, role:'', status:'', source:'http-error' };
+      const signal = response.ok ? signalFromBody(body) : { terminal:false, finalFound:false, turnOpen:false, turnClosed:false, role:'', status:'', currentNodeRole:'', currentNodeId:'', workingTurnId:'', asyncStatus:null, source:'http-error' };
       health('PERSISTENCE_CHECK', {
-        status: response.status,
-        ok: response.ok,
-        finalFound: Boolean(signal.finalFound),
-        terminal: Boolean(signal.terminal),
-        assistantStatus: signal.status || '',
-        assistantMessageId: signal.messageId || '',
-        parseSource: signal.source || '',
-        error: response.ok ? '' : `HTTP_${response.status}`,
+        status:response.status,
+        ok:response.ok,
+        finalFound:Boolean(signal.finalFound),
+        terminal:Boolean(signal.terminal),
+        turnOpen:Boolean(signal.turnOpen),
+        turnClosed:Boolean(signal.turnClosed),
+        currentNodeRole:signal.currentNodeRole || '',
+        currentNodeId:signal.currentNodeId || '',
+        workingTurnId:signal.workingTurnId || '',
+        asyncStatus:signal.asyncStatus ?? null,
+        assistantStatus:signal.status || '',
+        assistantMessageId:signal.messageId || '',
+        parseSource:signal.source || '',
+        error:response.ok ? '' : `HTTP_${response.status}`,
         source
       }, id);
+      if (response.ok && signal.turnOpen && !signal.finalFound && config.autoPersistenceCheckEnabled) {
+        scheduleTerminalPersistenceCheck(id, 'turn-open-follow-up', Math.max(30_000, Number(config.autoPersistenceCheckMinGapMs || 60_000)));
+      }
       return {
-        ok: response.ok,
-        status: response.status,
-        finalFound: Boolean(signal.finalFound),
-        terminal: Boolean(signal.terminal),
-        assistantStatus: signal.status || '',
-        assistantMessageId: signal.messageId || '',
-        conversationId: id
+        ok:response.ok,
+        status:response.status,
+        finalFound:Boolean(signal.finalFound),
+        terminal:Boolean(signal.terminal),
+        turnOpen:Boolean(signal.turnOpen),
+        turnClosed:Boolean(signal.turnClosed),
+        currentNodeRole:signal.currentNodeRole || '',
+        currentNodeId:signal.currentNodeId || '',
+        workingTurnId:signal.workingTurnId || '',
+        asyncStatus:signal.asyncStatus ?? null,
+        assistantStatus:signal.status || '',
+        assistantMessageId:signal.messageId || '',
+        conversationId:id
       };
     } catch (error) {
-      health('PERSISTENCE_CHECK', { status:0, ok:false, finalFound:false, terminal:false, error:String(error?.message || error), source }, id);
-      return { ok:false, status:0, finalFound:false, terminal:false, error:String(error?.message || error), conversationId:id };
+      const message = String(error?.message || error);
+      health('PERSISTENCE_CHECK', { status:0, ok:false, finalFound:false, terminal:false, turnOpen:false, turnClosed:false, error:message, source }, id);
+      return { ok:false, status:0, finalFound:false, terminal:false, turnOpen:false, turnClosed:false, error:message, conversationId:id };
     }
   }
 
-  function scheduleTerminalPersistenceCheck(conversationId, cause = 'terminal-status') {
+  function scheduleTerminalPersistenceCheck(conversationId, cause = 'terminal-status', delayOverrideMs = 0) {
     const id = String(conversationId || '');
     if (!id || !config.autoPersistenceCheckEnabled || persistenceTimers.has(id)) return;
-    const delay = Math.max(1000, Number(config.autoPersistenceCheckDelayMs || 5000));
+    const delay = Math.max(1000, Number(delayOverrideMs || config.autoPersistenceCheckDelayMs || 5000));
     const timer = setTimeout(async () => {
       persistenceTimers.delete(id);
       let decision;
       try {
         decision = await requestBridge('REQUEST_PERSISTENCE_CHECK', { conversationId:id, cause, force:false }, 'PERSISTENCE_CHECK_DECISION', null);
       } catch { return; }
-      if (!decision || decision.action !== 'check') return;
-      await performPersistenceCheck(id, 'auto-terminal-check');
+      if (!decision || decision.action !== 'check') {
+        if (decision?.reason === 'minimum-gap' && Number(decision?.retryAfterMs || 0) > 0) {
+          scheduleTerminalPersistenceCheck(id, cause, Number(decision.retryAfterMs));
+        }
+        return;
+      }
+      await performPersistenceCheck(id, cause === 'turn-open-follow-up' ? 'turn-open-follow-up' : 'auto-terminal-check');
     }, delay);
     persistenceTimers.set(id, timer);
   }
