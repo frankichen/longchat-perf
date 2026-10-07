@@ -10,6 +10,7 @@ import {
 } from './coordinator-core.js';
 import { DEFAULT_AUTO_PROJECT_RULES, matchAutoRule, resolveProfileRoute, normalizeAutoRules } from './project-routing.js';
 
+const EXTENSION_VERSION = String(chrome.runtime.getManifest().version || 'unknown');
 const SESSION_KEY = 'coordinatorStateV4';
 const HEALTH_KEY = 'taskHealthV4';
 const TAB_MAP_KEY = 'taskHealthTabMapV4';
@@ -443,6 +444,24 @@ function applyHealthEvent(state, event, now) {
   const kind = String(event.kind || '');
   if (kind === 'PAGE_OPEN' || kind === 'ROUTE_SEEN') next.lastPageSeenAt = now;
   if (kind === 'PAGE_FOCUS') next.lastPageFocusAt = now;
+
+  if (kind === 'PAGE_TRANSPORT') {
+    next.lastPageTransportAt = now;
+    next.lastPageTransportStatus = Number(event.status || 0);
+    if (event.ok === true) {
+      next.lastPageTransportOkAt = now;
+      next.lastPageTransportError = '';
+      next.lastGeneralBackendOkAt = now;
+      next.recentBackendErrorCount = Math.max(0, Number(next.recentBackendErrorCount || 0) - 1);
+    } else {
+      next.lastPageTransportErrorAt = now;
+      next.lastPageTransportError = String(event.error || (next.lastPageTransportStatus ? `HTTP_${next.lastPageTransportStatus}` : 'PAGE_NETWORK_ERROR'));
+      next.lastGeneralBackendErrorAt = now;
+      next.recentBackendErrorCount = Math.min(20, Number(next.recentBackendErrorCount || 0) + 1);
+      next.lastError = next.lastPageTransportError;
+      if (next.lastPageTransportStatus === 429) next.last429At = now;
+    }
+  }
 
   if (kind === 'TURN_MUTATION') {
     next.startedAt = now;
@@ -1025,7 +1044,7 @@ async function maybeSubmitDevHub(conversationId, eventKind, healthState, force =
         last_stream_status: String(healthState?.lastStreamStatusValue || ''),
         last_stream_probe: String(healthState?.lastStreamProbeValue || ''),
         last_stream_probe_at: Number(healthState?.lastStreamProbeOkAt || 0) || null,
-        extension_version: '0.4.2'
+        extension_version: EXTENSION_VERSION
       }
     };
   } else {
@@ -1212,6 +1231,15 @@ async function getHealthForTab(tabId) {
   return { conversationId, summary: await decorateHealthSummary(conversationId, summary) };
 }
 
+function conversationIdFromPageUrl(urlString) {
+  try {
+    const path = new URL(urlString).pathname;
+    const match = path.match(/(?:^|\/)c\/([^/]+)(?:\/|$)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  } catch {}
+  return '';
+}
+
 function conversationIdFromBackendUrl(urlString) {
   try {
     const path = new URL(urlString).pathname;
@@ -1221,6 +1249,25 @@ function conversationIdFromBackendUrl(urlString) {
     if (m) return decodeURIComponent(m[1]);
   } catch {}
   return '';
+}
+
+async function recordPageTransport(details, ok) {
+  const tabId = Number(details.tabId);
+  if (!Number.isInteger(tabId) || tabId < 0) return;
+  const store = await getHealthStore();
+  const conversationId = conversationIdFromPageUrl(details.url) || normalizeConversationId(store.tabMap[String(tabId)]);
+  if (!conversationId) return;
+  await healthEvent({
+    conversationId,
+    tabId,
+    event: {
+      kind: 'PAGE_TRANSPORT',
+      ok: ok === true,
+      status: Number(details.statusCode || 0),
+      error: String(details.error || ''),
+      source: 'webRequest-main-frame'
+    }
+  }, { tab: { id: tabId } });
 }
 
 async function recordWebRequestTransport(details, ok) {
@@ -1416,6 +1463,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+chrome.webRequest.onCompleted.addListener(
+  details => { recordPageTransport(details, Number(details.statusCode || 0) < 400).catch(() => {}); },
+  { urls: ['https://chatgpt.com/*', 'https://chat.openai.com/*'], types: ['main_frame'] }
+);
+
+chrome.webRequest.onErrorOccurred.addListener(
+  details => { recordPageTransport(details, false).catch(() => {}); },
+  { urls: ['https://chatgpt.com/*', 'https://chat.openai.com/*'], types: ['main_frame'] }
+);
 
 chrome.webRequest.onCompleted.addListener(
   details => { recordWebRequestTransport(details, Number(details.statusCode || 0) < 400).catch(() => {}); },

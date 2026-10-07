@@ -193,6 +193,11 @@ export function createHealthState(conversationId = '') {
     lastMutationAt: 0,
     lastPageSeenAt: 0,
     lastPageFocusAt: 0,
+    lastPageTransportAt: 0,
+    lastPageTransportOkAt: 0,
+    lastPageTransportErrorAt: 0,
+    lastPageTransportStatus: 0,
+    lastPageTransportError: '',
     lastStreamStatusAt: 0,
     lastStreamStatusOkAt: 0,
     lastStreamStatusValue: '',
@@ -287,6 +292,7 @@ export function deriveHealth(state, now = Date.now(), settings = DEFAULT_SETTING
   const persistedAfterMutation = s.lastPersistedAt > 0 && (!s.lastMutationAt || s.lastPersistedAt >= s.lastMutationAt);
   const generalNetworkRecent = s.lastGeneralBackendOkAt > 0 && now - s.lastGeneralBackendOkAt <= settings.healthNetworkWindowMs;
   const generalErrorsRecent = s.lastGeneralBackendErrorAt > 0 && now - s.lastGeneralBackendErrorAt <= settings.healthNetworkWindowMs;
+  const pageTransportFailed = Number(s.lastPageTransportErrorAt || 0) > Number(s.lastPageTransportOkAt || 0) && now - Number(s.lastPageTransportErrorAt || 0) <= settings.healthNetworkWindowMs;
   const recent429 = s.last429At > 0 && now - s.last429At <= settings.healthNetworkWindowMs;
   const streaming = isStreamingValue(evidence.value);
   const terminalStatus = isTerminalValue(evidence.value) || Number(s.lastBackendTerminalAt || 0) > 0;
@@ -298,6 +304,10 @@ export function deriveHealth(state, now = Date.now(), settings = DEFAULT_SETTING
 
   if (persistedAfterMutation || s.lastPersistenceFinalFound === true) {
     return { code: 'COMPLETED_PERSISTED', level: 'blue', confidence: 'HIGH', label: '已完成并落盘', action: '已确认当前任务的最终助手回复已经写入会话；可以刷新页面，不要重复执行任务。' };
+  }
+
+  if (pageTransportFailed) {
+    return { code: 'PAGE_CONNECTION_FAILED', level: 'black', confidence: 'HIGH', label: 'ChatGPT 页面连接失败', action: '主页面连接最近发生超时、重置或其它传输失败；先恢复网络/代理并刷新页面。旧 stream_status / 探针状态在页面恢复前只属于历史证据，不应继续解释为当前仍在运行。' };
   }
 
   if (terminalStatus && persistenceCheckedAfterTerminal && s.lastPersistenceFinalFound === false) {

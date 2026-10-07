@@ -1,10 +1,10 @@
 # LongChat Perf · Task Vital Monitor
 
-A Chromium extension for long ChatGPT conversations and long-running tasks. Version **0.5.2** combines the original LongChat Perf rendering optimizations with request throttling, task-liveness diagnostics, conversation-chain verification, final-message persistence checks, and optional DevHub integration.
+A Chromium extension for long ChatGPT conversations and long-running tasks. Version **0.5.3** combines the original LongChat Perf rendering optimizations with request throttling, task-liveness diagnostics, conversation-chain verification, final-message persistence checks, and optional DevHub integration.
 
 ## Download
 
-GitHub Releases include a ready-to-unzip extension archive (`longchat-perf-v0.5.2.zip`) plus its SHA-256 file. Unzip it, then load the extracted folder from `chrome://extensions` or `edge://extensions` with Developer Mode enabled.
+GitHub Releases include a ready-to-unzip extension archive (`longchat-perf-v0.5.3.zip`) plus its SHA-256 file. Unzip it, then load the extracted folder from `chrome://extensions` or `edge://extensions` with Developer Mode enabled.
 
 The packaging workflow runs tests, stages only runtime files, creates the ZIP, uploads a GitHub Actions artifact, and attaches the ZIP to a published GitHub Release.
 
@@ -16,11 +16,13 @@ Existing project measurements reported cumulative long-task time improving from 
 
 ## Task liveness
 
-The extension correlates passive `/stream_status`, bounded status-service probes, resume results, conversation-chain evidence, general backend reachability, final assistant-message persistence, and optional DevHub liveness. In v0.5.2, `COMPLETE / FINISHED / NOT_STREAMING` are only auxiliary status signals. The conversation detail response is checked for `current_node`, `working_turn_id`, `end_turn`, the current node role, and a visible final assistant message before the task is treated as complete.
+The extension correlates passive `/stream_status`, bounded status-service probes, resume results, conversation-chain evidence, general backend reachability, final assistant-message persistence, and optional DevHub liveness. In v0.5.3, `COMPLETE / FINISHED / NOT_STREAMING` are only auxiliary status signals. The conversation detail response is checked for `current_node`, `working_turn_id`, `end_turn`, the current node role, and a visible final assistant message before the task is treated as complete.
 
 ## Request guard
 
 Conversation-list and conversation-detail GETs use cross-tab coordination, caching, a minimum real-request interval, and 429 backoff. `stream_status` is intentionally preserved as a health signal rather than aggressively cached away.
+
+v0.5.3 additionally observes top-level ChatGPT navigation failures. A main-frame timeout/reset now becomes `PAGE_CONNECTION_FAILED` and takes precedence over stale `IS_STREAMING`/terminal conflicts until the page transport recovers. DevHub evidence also reports the actual manifest version instead of a hard-coded historical version.
 
 ## DevHub
 

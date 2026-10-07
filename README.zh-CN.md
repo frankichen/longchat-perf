@@ -5,14 +5,14 @@
 1. **长会话性能优化**：屏外渲染跳过、旧消息渐进折叠、流式输出防抖、CodeMirror 代码块批量挂载、主线程长任务统计。
 2. **任务生命体征与请求保护**：降低会话列表/详情重复请求与 429，观测 `stream_status` / `resume`，区分“仍在运行 / 断流 / 已结束 / 已结束但最终回复未落盘”，并可选联动 DevHub。
 
-当前版本：**v0.5.2**。界面与状态提示全部使用中文。生命体征详情面板打开后，点击页面其他位置会自动收起。
+当前版本：**v0.5.3**。界面与状态提示全部使用中文。生命体征详情面板打开后，点击页面其他位置会自动收起。
 
 ## 直接下载 ZIP
 
 GitHub Release 会附带：
 
-- `longchat-perf-v0.5.2.zip`：扩展压缩包；
-- `longchat-perf-v0.5.2.zip.sha256`：SHA-256 校验文件。
+- `longchat-perf-v0.5.3.zip`：扩展压缩包；
+- `longchat-perf-v0.5.3.zip.sha256`：SHA-256 校验文件。
 
 解压 ZIP 后，在 `edge://extensions/` 或 `chrome://extensions/` 开启开发者模式，选择“加载已解压的扩展程序”，加载解压后的目录。
 
@@ -42,7 +42,7 @@ GitHub Release 会附带：
 - 当前 working turn 是否真的出现“可见 assistant + end_turn=true + 有实际正文”的最终回复；
 - 可选 DevHub Session/Task liveness。
 
-v0.5.2 的关键变化是：`COMPLETE / FINISHED / NOT_STREAMING` 不再被当成“任务已经完成”的高置信度证据。如果会话详情仍显示当前 turn 未闭合，插件会明确显示 **“状态服务报结束，但任务链仍未闭合”**，并继续低频核验。
+v0.5.3 的关键变化是：`COMPLETE / FINISHED / NOT_STREAMING` 不再被当成“任务已经完成”的高置信度证据。如果会话详情仍显示当前 turn 未闭合，插件会明确显示 **“状态服务报结束，但任务链仍未闭合”**，并继续低频核验。
 
 常见状态包括：
 
@@ -58,6 +58,8 @@ v0.5.2 的关键变化是：`COMPLETE / FINISHED / NOT_STREAMING` 不再被当�
 ## 请求降频
 
 默认对会话列表和会话详情启用跨标签页协调、短路缓存、真实请求最小间隔和 429 退避。`stream_status` 不做暴力长期缓存，只保留为生命体征并在必要时低频独立校验。
+
+v0.5.3 额外观测 ChatGPT 顶层页面导航：主页面出现超时、连接重置等传输失败时会进入 `PAGE_CONNECTION_FAILED`，优先于历史 `IS_STREAMING`/结束探针冲突，直到页面连接真正恢复；同时 DevHub Evidence 的 `extension_version` 改为读取当前 manifest 的真实版本，不再固定上报旧版本。
 
 ## ChatGPT Project → DevHub 自动路由
 

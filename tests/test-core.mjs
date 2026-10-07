@@ -71,6 +71,15 @@ s.lastBackendTerminalValue = 'COMPLETE';
 s.lastBackendTerminalSource = 'independent-probe';
 assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'STREAM_STATUS_CONFLICT');
 
+s.lastPageTransportErrorAt = now - 100;
+s.lastPageTransportAt = now - 100;
+s.lastPageTransportStatus = 0;
+s.lastPageTransportError = 'net::ERR_CONNECTION_TIMED_OUT';
+assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'PAGE_CONNECTION_FAILED');
+s.lastPageTransportOkAt = now - 50;
+s.lastPageTransportAt = now - 50;
+assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'STREAM_STATUS_CONFLICT');
+
 s = createHealthState('c4b');
 s.lastMutationAt = now - 120_000;
 s.lastBackendTerminalAt = now - 45_000;

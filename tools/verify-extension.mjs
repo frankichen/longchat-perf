@@ -9,7 +9,7 @@ const required = [
 ];
 let failures = 0;
 function ok(cond,msg){ if(cond) console.log('PASS',msg); else { failures++; console.error('FAIL',msg); } }
-ok(manifest.version === '0.5.2','manifest 版本为 0.5.2');
+ok(manifest.version === '0.5.3','manifest 版本为 0.5.3');
 ok(manifest.background?.service_worker === 'service-worker.js','后台 Service Worker 已启用');
 ok(Array.isArray(manifest.permissions) && manifest.permissions.includes('webRequest'),'已声明 webRequest 只读观测权限');
 for (const f of required) ok(fs.existsSync(path.join(root,f)),`运行时文件存在：${f}`);
@@ -20,6 +20,8 @@ ok(guard.includes("const strongFinal = role === 'assistant'"),'最终回复采�
 ok(guard.includes('turnOpen') && guard.includes('workingTurnId'),'会话详情解析包含任务链开放状态与 working turn');
 const worker = fs.readFileSync(path.join(root,'service-worker.js'),'utf8');
 ok(worker.includes('const found = event.finalFound === true;'),'后台不会再把 terminal 状态直接当成最终回复');
+ok(worker.includes("const EXTENSION_VERSION = String(chrome.runtime.getManifest().version || 'unknown');"),'DevHub 上报使用真实扩展版本');
+ok(worker.includes("kind: 'PAGE_TRANSPORT'") && worker.includes("types: ['main_frame']"),'主页面超时/重置进入健康状态机');
 const popup = fs.readFileSync(path.join(root,'popup/popup.html'),'utf8');
 for (const id of ['healthLabel','chainStateValue','chainNodeValue','workingTurnValue','asyncStatusValue','cv','cmMount','ltStatus','profileSelect','diagnose']) ok(popup.includes(`id="${id}"`),`弹窗包含 ${id}`);
 const options = fs.readFileSync(path.join(root,'options.html'),'utf8');
