@@ -1,35 +1,29 @@
 {
   "manifest_version": 3,
-  "name": "LongChat Perf",
-  "version": "0.3.1",
-  "description": "A tiny, local-only rendering patch for keeping long ChatGPT conversations responsive.",
-  "permissions": ["storage"],
+  "name": "LongChat Perf · 任务生命监视器",
+  "version": "0.5.3",
+  "description": "优化超长 ChatGPT 会话渲染，降低重复会话请求与 429，并用状态服务 + 会话链交叉判断任务是否仍未闭合、最终回复是否真正落盘及可选 DevHub 证据。",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "storage",
+    "tabs",
+    "webRequest"
+  ],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*"
   ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*"
-      ],
-      "css": ["content/base.css"],
-      "js": ["content/content.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*"
-      ],
-      "js": ["content/cm-mount.js"],
-      "world": "MAIN",
-      "run_at": "document_start"
-    }
+  "optional_host_permissions": [
+    "https://devhub.sgk.555044.xyz/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
   "action": {
-    "default_title": "LongChat Perf",
+    "default_title": "LongChat Perf · 任务生命监视器",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -37,6 +31,36 @@
       "128": "icons/icon128.png"
     }
   },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "css": [
+        "content/base.css"
+      ],
+      "js": [
+        "content/content.js",
+        "bridge.js",
+        "overlay.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "page-guard.js",
+        "content/cm-mount.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
