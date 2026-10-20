@@ -634,12 +634,12 @@
     if (!id) return { ok:false, status:0, finalFound:false, turnOpen:false, turnClosed:false, error:'NO_CONVERSATION' };
     const url = `${location.origin}/backend-api/conversations/${encodeURIComponent(id)}?num_turns=10&include_has_versions=true`;
     try {
-      const response = await originalFetch(url, {
+      const response = await guardedFetch(url, {
         method:'GET',
         credentials:'include',
         cache:'no-store',
         headers:{ accept:'application/json' }
-      });
+      }, { networkOnly: true });
       let body = '';
       try { body = await response.clone().text(); } catch {}
       const signal = response.ok ? signalFromBody(body) : { terminal:false, finalFound:false, turnOpen:false, turnClosed:false, role:'', status:'', currentNodeRole:'', currentNodeId:'', workingTurnId:'', asyncStatus:null, source:'http-error' };
@@ -853,7 +853,7 @@
     }
   }
 
-  async function guardedFetch(input, init) {
+  async function guardedFetch(input, init, guardOptions = null) {
     const info = requestInfo(input, init);
     const mutateId = mutationConversationId(info);
     if (mutateId) {
@@ -878,7 +878,7 @@
     for (;;) {
       let decision;
       try {
-        decision = await requestBridge('ACQUIRE', { key, url: info.url.href, kind: target.kind, conversationId: target.conversationId }, 'ACQUIRE_RESULT', info.signal);
+        decision = await requestBridge('ACQUIRE', { key, url: info.url.href, kind: target.kind, conversationId: target.conversationId, networkOnly: guardOptions?.networkOnly === true }, 'ACQUIRE_RESULT', info.signal);
       } catch {
         return originalFetch(input, init);
       }
@@ -952,7 +952,7 @@
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
     let parsed = null;
     try { parsed = new URL(String(url), location.href); } catch {}
-    xhrInfo.set(this, { method: String(method || 'GET').toUpperCase(), url: parsed });
+    xhrInfo.set(this, { method: String(method || 'GET').toUpperCase(), url: parsed, async: rest[0] !== false, sendQueued: false });
     return nativeXHROpen.call(this, method, url, ...rest);
   };
 
@@ -1026,6 +1026,55 @@
       this.addEventListener('error', () => report('error'), { once: true });
       this.addEventListener('timeout', () => report('timeout'), { once: true });
       this.addEventListener('loadend', () => report('loadend'), { once: true });
+    }
+    // Delay only async detail XHR; cached Response objects cannot be
+    // faithfully emulated with XMLHttpRequest's readonly properties.
+    const detail = config.enabled && raw?.async !== false ? classifyTarget(info) : null;
+    if (detail?.kind === 'detail') {
+      if (raw.sendQueued) throw new DOMException('XHR send already pending', 'InvalidStateError');
+      raw.sendQueued = true;
+      const xhr = this;
+      const run = async () => {
+        for (;;) {
+          if (xhr.readyState !== XMLHttpRequest.OPENED) return;
+          let decision;
+          try {
+            decision = await requestBridge('ACQUIRE', {
+              key: stableKey(info), url: info.url.href, kind: 'detail',
+              conversationId: detail.conversationId, networkOnly: true
+            }, 'ACQUIRE_RESULT', null);
+          } catch {
+            if (xhr.readyState === XMLHttpRequest.OPENED) nativeXHRSend.call(xhr, body);
+            return;
+          }
+          if (xhr.readyState !== XMLHttpRequest.OPENED) {
+            if (decision?.leaseId) post('NETWORK_ERROR', { leaseId: decision.leaseId });
+            return;
+          }
+          if (decision?.action === 'wait' || decision?.action === 'cache' || decision?.action === 'synthetic429') {
+            await sleep(Math.max(250, Number(decision.retryAfterMs) || 1_000), null);
+            continue;
+          }
+          if (decision?.action === 'network' && decision.leaseId) {
+            const leaseId = decision.leaseId;
+            xhr.addEventListener('loadend', () => {
+              let status = 0, penalty = 0;
+              try {
+                status = Number(xhr.status || 0);
+                penalty = retryAfterMs({ headers: [['retry-after', xhr.getResponseHeader('retry-after') || '']] });
+              } catch {}
+              post('COMPLETE', { leaseId, status, retryAfterMs: penalty });
+            }, { once: true });
+            try { nativeXHRSend.call(xhr, body); }
+            catch { post('NETWORK_ERROR', { leaseId }); }
+            return;
+          }
+          if (xhr.readyState === XMLHttpRequest.OPENED) nativeXHRSend.call(xhr, body);
+          return;
+        }
+      };
+      run().catch(() => {}); // fail closed without claiming XHR succeeded
+      return;
     }
     return nativeXHRSend.call(this, body);
   };

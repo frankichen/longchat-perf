@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   detailStableTtlMs: 24 * 60 * 60_000,
   detailUncertainTtlMs: 60_000,
   globalMinGapMs: 30_000,
+  detailColdStartGapMs: 5_000,
   staleMaxMs: 7 * 24 * 60 * 60_000,
   serveStaleDuringCooldown: true,
   staleIf429: true,
@@ -96,6 +97,7 @@ export function normalizeSettings(raw = {}) {
   out.detailStableTtlMs = clamp(out.detailStableTtlMs, 5 * 60_000, 7 * 24 * 60 * 60_000, DEFAULT_SETTINGS.detailStableTtlMs);
   out.detailUncertainTtlMs = clamp(out.detailUncertainTtlMs, 5_000, 30 * 60_000, DEFAULT_SETTINGS.detailUncertainTtlMs);
   out.globalMinGapMs = clamp(out.globalMinGapMs, 5_000, 30 * 60_000, DEFAULT_SETTINGS.globalMinGapMs);
+  out.detailColdStartGapMs = clamp(out.detailColdStartGapMs, 1_000, 15_000, DEFAULT_SETTINGS.detailColdStartGapMs);
   out.staleMaxMs = clamp(out.staleMaxMs, Math.max(out.listOtherPageTtlMs, out.detailStableTtlMs), 30 * 24 * 60 * 60_000, DEFAULT_SETTINGS.staleMaxMs);
   out.cacheMaxEntries = clamp(out.cacheMaxEntries, 4, 64, DEFAULT_SETTINGS.cacheMaxEntries);
   out.cacheMaxApproxBytes = clamp(out.cacheMaxApproxBytes, 1_000_000, 8_000_000, DEFAULT_SETTINGS.cacheMaxApproxBytes);
@@ -173,6 +175,13 @@ export function backoffMsForStrike(strike) {
   return BACKOFF_STEPS_MS[i];
 }
 
+// Never fabricate a local 429 for a conversation with no cached response.
+export function cooldownAction(kind, hasCache, { networkOnly = false, serveStale = true, local429 = true } = {}) {
+  if (hasCache && !networkOnly && serveStale) return 'cache';
+  if (kind === 'detail' || networkOnly || !local429) return 'wait';
+  return 'synthetic429';
+}
+
 export function createInitialSessionState() {
   return {
     cache: {},
@@ -180,6 +189,7 @@ export function createInitialSessionState() {
     lastNetworkAt: 0,
     nextAllowedAt: 0,
     rate429Strikes: 0,
+    last429ObservedAt: 0,
     backoffReason: '',
     forceNextRequest: false,
     activeLease: null

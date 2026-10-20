@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { DEFAULT_SETTINGS, deriveHealth, createHealthState, classifyConversationUrl, backoffMsForStrike } from '../coordinator-core.js';
+import { DEFAULT_SETTINGS, deriveHealth, createHealthState, classifyConversationUrl, backoffMsForStrike, cooldownAction, normalizeSettings } from '../coordinator-core.js';
 
 const now = 1_000_000;
 let s = createHealthState('c1');
@@ -113,4 +113,12 @@ assert.equal(deriveHealth(s, now, DEFAULT_SETTINGS).code, 'RATE_LIMITED');
 assert.deepEqual(classifyConversationUrl('https://chatgpt.com/backend-api/conversations/abc?num_turns=10'), {kind:'detail', conversationId:'abc'});
 assert.equal(backoffMsForStrike(1), 10 * 60_000);
 assert.equal(backoffMsForStrike(4), 120 * 60_000);
+assert.equal(cooldownAction('detail', false), 'wait');
+assert.equal(cooldownAction('detail', true), 'cache');
+assert.equal(cooldownAction('detail', true, { networkOnly: true }), 'wait');
+assert.equal(cooldownAction('list', false), 'synthetic429');
+assert.equal(cooldownAction('list', true), 'cache');
+assert.equal(cooldownAction('detail', false, { local429: false }), 'wait');
+assert.equal(normalizeSettings({detailColdStartGapMs:500}).detailColdStartGapMs, 1000);
+assert.equal(normalizeSettings({detailColdStartGapMs:40000}).detailColdStartGapMs, 15000);
 console.log('core tests: PASS');

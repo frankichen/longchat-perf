@@ -61,6 +61,15 @@ v0.5.3 的关键变化是：`COMPLETE / FINISHED / NOT_STREAMING` 不再被当�
 
 v0.5.3 额外观测 ChatGPT 顶层页面导航：主页面出现超时、连接重置等传输失败时会进入 `PAGE_CONNECTION_FAILED`，优先于历史 `IS_STREAMING`/结束探针冲突，直到页面连接真正恢复；同时 DevHub Evidence 的 `extension_version` 改为读取当前 manifest 的真实版本，不再固定上报旧版本。
 
+## 会话详情 GET 主动保护
+
+- 原有缓存、跨标签页网络租约与真实 429 退避仍然保留，租约状态更新改成严格串行。
+- `GET /backend-api/conversations/{id}` 没有可用缓存时不会返回插件伪造的 429，而是等待服务端退避结束；有安全缓存时正常复用。
+- 没有真实 429 时，首次打开新对话采用最短 5 秒的冷启动间隔，避免受到会话列表 30 秒通用间隔的影响。
+- 内部最终回复落盘核验、异步 XHR 会话详情 GET 共用网络租约；手动清缓存也不能重置真实 429 冷却。
+- 被动观察到绕过正常协调流程的会话详情 429 时，也会写入统一退避状态。
+- 不拦截消息提交、stream_status、工具调用；不同 Chrome Profile 无法天然共享本扩展的 Session Storage。
+
 ## ChatGPT Project → DevHub 自动路由
 
 插件可被动读取 ChatGPT Project/会话元数据，按项目名或会话标题自动映射到 DevHub。内置示例：

@@ -4,6 +4,7 @@ import {
   normalizeSettings,
   cacheState,
   backoffMsForStrike,
+  cooldownAction,
   createInitialSessionState,
   createHealthState,
   deriveHealth
@@ -24,6 +25,14 @@ const USAGE_STATUS_KEY = 'usageStatusV4_3';
 const DEFAULT_DEVHUB_CONFIG = Object.freeze({ enabled: false, baseUrl: 'https://devhub.sgk.555044.xyz', submitOnOpen: true, submitOnStateChange: true, minSubmitGapMs: 60000, profiles: [], bindings: {}, autoProjectMapping: true, autoRules: DEFAULT_AUTO_PROJECT_RULES });
 let settings = normalizeSettings();
 let updateQueue = Promise.resolve();
+let coordinatorQueue = Promise.resolve();
+
+// Serialize shared storage.session read-modify-write and network lease grants.
+function transaction(fn) {
+  const result = coordinatorQueue.then(fn, fn);
+  coordinatorQueue = result.catch(() => {});
+  return result;
+}
 let healthQueue = Promise.resolve();
 let probeQueue = Promise.resolve();
 let persistenceQueue = Promise.resolve();
@@ -224,13 +233,14 @@ async function acquire(message, sender) {
   const url = String(message.url || '');
   const kind = message.kind === 'detail' ? 'detail' : (message.kind === 'list' ? 'list' : 'other');
   const conversationId = message.conversationId ? String(message.conversationId) : null;
+  const networkOnly = message.networkOnly === true;
   if (!key || !url || kind === 'other') return { action: 'passthrough' };
 
   const state = await getState();
   const entry = state.cache[key];
   const cstate = cacheState(entry, url, settings, now);
 
-  if (!state.forceNextRequest && cstate === 'fresh') {
+  if (!networkOnly && !state.forceNextRequest && cstate === 'fresh') {
     addStats(cacheHitStats(entry, now, false));
     return { action: 'cache', snapshot: entry.snapshot, ageMs: now - entry.savedAt, cacheState: 'fresh' };
   }
@@ -242,7 +252,7 @@ async function acquire(message, sender) {
   }
 
   if (state.activeLease) {
-    if (settings.serveStaleDuringCooldown && (cstate === 'fresh' || cstate === 'stale')) {
+    if (!networkOnly && settings.serveStaleDuringCooldown && (cstate === 'fresh' || cstate === 'stale')) {
       addStats(cacheHitStats(entry, now, true));
       return { action: 'cache', snapshot: entry.snapshot, ageMs: now - entry.savedAt, cacheState: 'stale-active-lease' };
     }
@@ -251,19 +261,28 @@ async function acquire(message, sender) {
   }
 
   const is429Backoff = state.backoffReason === '429' && now < Number(state.nextAllowedAt || 0);
-  if (!state.forceNextRequest && is429Backoff) {
-    if (settings.serveStaleDuringCooldown && (cstate === 'fresh' || cstate === 'stale')) {
+  if (is429Backoff) {
+    const action = cooldownAction(kind, cstate === 'fresh' || cstate === 'stale', {
+      networkOnly, serveStale: settings.serveStaleDuringCooldown, local429: settings.local429DuringBackoff
+    });
+    if (action === 'cache') {
       addStats({ ...cacheHitStats(entry, now, true), stale429Served: 1, lastStale429At: now });
       return { action: 'cache', snapshot: entry.snapshot, ageMs: now - entry.savedAt, cacheState: 'stale-429-backoff' };
     }
-    if (settings.local429DuringBackoff) {
+    if (action === 'synthetic429') {
       addStats({ local429Blocks: 1, savedRequests: 1, lastLocal429At: now });
       return { action: 'synthetic429', retryAfterMs: Math.max(1_000, Number(state.nextAllowedAt || 0) - now) };
     }
+    // For an uncached conversation, wait rather than causing a false load error.
+    addStats({ globalGapBlocks: 1, lastGlobalGapBlockAt: now });
+    return { action: 'wait', retryAfterMs: Math.min(10_000, Math.max(1_000, Number(state.nextAllowedAt || 0) - now)) };
   }
 
-  if (!state.forceNextRequest && now < Number(state.nextAllowedAt || 0)) {
-    if (settings.serveStaleDuringCooldown && (cstate === 'fresh' || cstate === 'stale')) {
+  // A conversation's first load should not be stuck behind the list's 30s gap.
+  const coldDetailReady = kind === 'detail' && !networkOnly && cstate === 'missing' &&
+    now - Number(state.lastNetworkAt || 0) >= settings.detailColdStartGapMs;
+  if (!state.forceNextRequest && now < Number(state.nextAllowedAt || 0) && !coldDetailReady) {
+    if (!networkOnly && settings.serveStaleDuringCooldown && (cstate === 'fresh' || cstate === 'stale')) {
       addStats({ ...cacheHitStats(entry, now, true), globalGapBlocks: 1, lastGlobalGapBlockAt: now });
       return { action: 'cache', snapshot: entry.snapshot, ageMs: now - entry.savedAt, cacheState: 'stale-global-gap' };
     }
@@ -337,6 +356,7 @@ async function complete(message) {
     addStats({ successfulRequests: 1, lastSuccessAt: now });
   } else if (status === 429) {
     state.rate429Strikes = Math.min(100, Number(state.rate429Strikes || 0) + 1);
+    state.last429ObservedAt = now;
     const configuredPenalty = backoffMsForStrike(state.rate429Strikes);
     const serverPenalty = Math.max(0, Number(message.retryAfterMs || 0));
     const penalty = Math.max(configuredPenalty, serverPenalty);
@@ -382,10 +402,12 @@ async function clearSharedCache(forceNext = false) {
   const state = await getState();
   state.cache = {};
   if (forceNext) {
-    state.forceNextRequest = true;
-    state.nextAllowedAt = 0;
-    state.backoffReason = '';
-    state.rate429Strikes = 0;
+    // Manual clear does not override a real server 429.
+    state.forceNextRequest = state.backoffReason !== '429';
+    if (state.backoffReason !== '429') {
+      state.nextAllowedAt = 0;
+      state.rate429Strikes = 0;
+    }
   }
   await setState(state);
   addStats({ cacheClears: 1, ...(forceNext ? { manualRefreshes: 1 } : {}), lastCacheClearAt: Date.now() });
@@ -1251,6 +1273,23 @@ function conversationIdFromBackendUrl(urlString) {
   return '';
 }
 
+async function observeUncoordinatedDetail429(details) {
+  const id = conversationIdFromBackendUrl(details.url);
+  if (!id || Number(details.statusCode || 0) !== 429) return;
+  await transaction(async () => {
+    const state = await getState(), now = Date.now();
+    // Guarded Fetch/XHR is reported separately via COMPLETE.
+    if (state.activeLease?.kind === 'detail' && state.activeLease.conversationId === id) return;
+    if (now - Number(state.last429ObservedAt || 0) < 3_000) return;
+    state.rate429Strikes = Math.min(100, Number(state.rate429Strikes || 0) + 1);
+    state.last429ObservedAt = now;
+    state.nextAllowedAt = Math.max(Number(state.nextAllowedAt || 0), now + backoffMsForStrike(state.rate429Strikes));
+    state.backoffReason = '429';
+    await setState(state);
+    addStats({ server429: 1, last429At: now, lastBackoffUntilAt: state.nextAllowedAt });
+  });
+}
+
 async function recordPageTransport(details, ok) {
   const tabId = Number(details.tabId);
   if (!Number.isInteger(tabId) || tabId < 0) return;
@@ -1271,6 +1310,7 @@ async function recordPageTransport(details, ok) {
 }
 
 async function recordWebRequestTransport(details, ok) {
+  if (Number(details.statusCode || 0) === 429) await observeUncoordinatedDetail429(details);
   const tabId = Number(details.tabId);
   if (!Number.isInteger(tabId) || tabId < 0) return;
   const store = await getHealthStore();
@@ -1318,27 +1358,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== 'object') return;
 
   if (message.type === 'ACQUIRE') {
-    acquire(message, sender).then(sendResponse).catch(error => sendResponse({ action: 'passthrough', error: String(error) }));
+    transaction(() => acquire(message, sender)).then(sendResponse).catch(error => sendResponse({ action: 'passthrough', error: String(error) }));
     return true;
   }
 
   if (message.type === 'COMPLETE') {
-    complete(message).then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error) }));
+    transaction(() => complete(message)).then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error) }));
     return true;
   }
 
   if (message.type === 'NETWORK_ERROR') {
-    complete({ ...message, status: 0 }).then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error) }));
+    transaction(() => complete({ ...message, status: 0 })).then(sendResponse).catch(error => sendResponse({ ok: false, error: String(error) }));
     return true;
   }
 
   if (message.type === 'INVALIDATE_CONVERSATION') {
-    invalidateConversation(message.conversationId).then(() => sendResponse({ ok: true })).catch(error => sendResponse({ ok: false, error: String(error) }));
+    transaction(() => invalidateConversation(message.conversationId)).then(() => sendResponse({ ok: true })).catch(error => sendResponse({ ok: false, error: String(error) }));
     return true;
   }
 
   if (message.type === 'CLEAR_SHARED_CACHE') {
-    clearSharedCache(Boolean(message.forceNext)).then(() => sendResponse({ ok: true })).catch(error => sendResponse({ ok: false, error: String(error) }));
+    transaction(() => clearSharedCache(Boolean(message.forceNext))).then(() => sendResponse({ ok: true })).catch(error => sendResponse({ ok: false, error: String(error) }));
     return true;
   }
 
