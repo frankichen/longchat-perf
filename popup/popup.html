@@ -1,73 +1,116 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<link rel="stylesheet" href="popup.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ChatGPT 任务生命体征监视器</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header>
-    <span class="title">⚡ LongChat Perf</span>
-    <label class="switch" title="总开关">
-      <input type="checkbox" id="master">
-      <span class="slider"></span>
-    </label>
-  </header>
+  <main>
+    <header>
+      <div>
+        <h1>LongChat Perf · 任务生命监视器 <span>v0.5.2</span></h1>
+        <p>长会话性能优化 + 任务存活判断 + 请求降频 + DevHub 联动</p>
+      </div>
+      <label class="switch" title="启用/停用插件"><input id="enabled" type="checkbox"><span></span></label>
+    </header>
 
-  <section class="patches">
-    <label class="row">
-      <input type="checkbox" id="cv">
-      <span class="desc">
-        <b>核心渲染跳过</b>
-        <small>content-visibility：屏幕外消息/代码块不布局不绘制（收益最大）</small>
-      </span>
-    </label>
-    <label class="row">
-      <input type="checkbox" id="noblur">
-      <span class="desc">
-        <b>中和毛玻璃</b>
-        <small>关闭 backdrop-filter，减少滚动时的图层合成开销</small>
-      </span>
-    </label>
-    <label class="row">
-      <input type="checkbox" id="collapse">
-      <span class="desc">
-        <b>旧消息折叠</b>
-        <small>早期消息折叠为零高度，点击提示条或滚到顶部可展开</small>
-      </span>
-    </label>
-    <label class="row">
-      <input type="checkbox" id="stream">
-      <span class="desc">
-        <b>流式输出防抖</b>
-        <small>输出期间关闭消息区动画过渡，暂停折叠维护</small>
-      </span>
-    </label>
-    <label class="row">
-      <input type="checkbox" id="cmMount">
-      <span class="desc">
-        <b>代码块批量挂载</b>
-        <small>合并代码编辑器初始化的整页样式重算，大幅缩短打开/切换长会话的卡顿</small>
-      </span>
-    </label>
-  </section>
+    <section id="healthCard" class="card health gray">
+      <div class="healthTop"><span id="healthDot" class="dot"></span><strong id="healthLabel">正在读取…</strong></div>
+      <div id="healthAction" class="actionText"></div>
+      <div class="kv"><span>判断置信度</span><b id="confidenceValue">-</b></div>
+      <div class="kv"><span>页面状态查询</span><b id="streamValue">-</b></div>
+      <div class="kv"><span>状态服务探针（辅助）</span><b id="probeValue">-</b></div>
+      <div class="kv"><span>会话链状态</span><b id="chainStateValue">-</b></div>
+      <div class="kv"><span>当前会话节点</span><b id="chainNodeValue">-</b></div>
+      <div class="kv"><span>工作回合标识</span><b id="workingTurnValue">-</b></div>
+      <div class="kv"><span>异步状态原值</span><b id="asyncStatusValue">-</b></div>
+      <div class="kv"><span>状态服务最近成功</span><b id="heartbeatAge">-</b></div>
+      <div class="kv"><span>状态服务结束信号</span><b id="terminalValue">-</b></div>
+      <div class="kv"><span>恢复请求</span><b id="resumeValue">-</b></div>
+      <div class="kv"><span>网络链路</span><b id="networkValue">-</b></div>
+      <div class="kv"><span>最终回复落盘</span><b id="persistedValue">-</b></div>
+      <div class="kv"><span>DevHub 存活状态</span><b id="devhubLivenessValue">-</b></div>
+      <button id="diagnose" class="primary">诊断当前任务（状态服务 + 会话链，最多 2 次请求）</button>
+    </section>
 
-  <section class="opts">
-    <label class="keep">
-      最近保留消息数
-      <input type="number" id="keep" min="10" max="500" step="10" value="60">
-    </label>
-    <div class="btnrow">
-      <button id="foldNow" title="立即折叠视口上方的早期消息">立即折叠</button>
-      <button id="expandAll" title="展开全部已折叠消息">展开全部</button>
-    </div>
-  </section>
+    <section class="card">
+      <div class="sectionTitle">DevHub 联动</div>
+      <div id="conversationId" class="mono small">-</div>
+      <div class="kv"><span>ChatGPT 项目/会话</span><b id="chatgptProjectValue">-</b></div>
+      <div class="kv"><span>自动路由</span><b id="autoRouteValue">-</b></div>
+      <select id="profileSelect"><option value="">未绑定 DevHub</option></select>
+      <div class="buttonRow">
+        <button id="bindProfile">绑定当前会话</button>
+        <button id="submitDevHub">立即同步 DevHub</button>
+      </div>
+      <button id="openOptions" class="linkButton">打开插件配置</button>
+      <div id="devhubStatus" class="hint"></div>
+    </section>
 
-  <footer>
-    <div id="cmStatus"></div>
-    <div id="ltStatus"></div>
-    <div id="status">正在读取状态…</div>
-  </footer>
 
-<script src="popup.js"></script>
+    <section class="card">
+      <div class="sectionTitle">额度与限流</div>
+      <div class="kv"><span>当前状态</span><b id="usageAllowed">尚未捕获</b></div>
+      <div class="kv"><span>主限额窗口</span><b id="usagePrimary">-</b></div>
+      <div class="kv"><span>次限额窗口</span><b id="usageSecondary">-</b></div>
+      <div class="kv"><span>重置额度</span><b id="usageCredits">-</b></div>
+      <div class="kv"><span>模型可用状态</span><b id="usageModels">-</b></div>
+      <div class="kv"><span>额度快照更新时间</span><b id="usageUpdated">-</b></div>
+      <div class="hint">只被动读取页面已有的额度事件，不额外请求额度接口；不会保存账号、邮箱、用户 ID 或账户 ID。</div>
+    </section>
+
+
+    <section class="card">
+      <div class="sectionTitle">长会话性能优化</div>
+      <div class="perfGrid">
+        <label><input id="cv" type="checkbox"> 屏外渲染跳过</label>
+        <label><input id="noblur" type="checkbox"> 中和毛玻璃</label>
+        <label><input id="collapse" type="checkbox"> 旧消息渐进折叠</label>
+        <label><input id="stream" type="checkbox"> 流式输出防抖</label>
+        <label><input id="cmMount" type="checkbox"> 代码块批量挂载</label>
+      </div>
+      <div class="kv"><span>最近保留消息数</span><input id="keep" class="numberInput" type="number" min="10" max="500" step="10" value="60"></div>
+      <div class="buttonRow">
+        <button id="foldNow">立即折叠早期消息</button>
+        <button id="expandAll">展开全部消息</button>
+      </div>
+      <div id="perfStatus" class="hint"></div>
+      <div id="cmStatus" class="hint"></div>
+      <div id="ltStatus" class="hint"></div>
+    </section>
+
+    <section class="card stats">
+      <div class="sectionTitle">请求与生命体征统计</div>
+      <div><span>真实会话读取</span><b id="actualRequests">0</b></div>
+      <div><span>节省的读取请求</span><b id="savedRequests">0</b></div>
+      <div><span>服务器 429</span><b id="server429">0</b></div>
+      <div><span>状态查询成功</span><b id="streamStatusSuccess">0</b></div>
+      <div><span>状态查询失败</span><b id="streamStatusFailures">0</b></div>
+      <div><span>状态查询被页面取消</span><b id="streamStatusAborts">0</b></div>
+      <div><span>独立探针成功</span><b id="streamProbeSuccess">0</b></div>
+      <div><span>独立探针失败</span><b id="streamProbeFailures">0</b></div>
+      <div><span>独立探针确认结束</span><b id="streamProbeComplete">0</b></div>
+      <div><span>最终回复核验次数</span><b id="persistenceChecks">0</b></div>
+      <div><span>核验到最终回复</span><b id="persistenceFinalFound">0</b></div>
+      <div><span>核验未找到最终回复</span><b id="persistenceFinalMissing">0</b></div>
+      <div><span>DevHub 提交</span><b id="devhubSubmits">0</b></div>
+      <div><span>DevHub 存活读取</span><b id="devhubLivenessReads">0</b></div>
+      <div><span>额度快照</span><b id="usageSnapshots">0</b></div>
+      <div><span>额度心跳</span><b id="usageHeartbeats">0</b></div>
+    </section>
+
+    <section class="card compact">
+      <label><input id="overlayEnabled" type="checkbox"> 在 ChatGPT 页面右下角显示生命体征</label>
+      <div id="runtime" class="hint"></div>
+      <div class="buttonRow">
+        <button id="forceRefresh">清缓存并放行下一次真实读取</button>
+        <button id="resetStats">清零统计</button>
+      </div>
+    </section>
+    <div id="status" class="status"></div>
+  </main>
+  <script src="popup.js"></script>
 </body>
 </html>
